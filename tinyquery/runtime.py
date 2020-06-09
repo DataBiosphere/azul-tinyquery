@@ -22,11 +22,13 @@ from tinyquery import tq_modes
 
 def pass_through_none(fn):
     """Modify a unary function so when its input is None, it returns None."""
+
     @functools.wraps(fn)
     def new_fn(arg):
         if arg is None:
             return None
         return fn(arg)
+
     return new_fn
 
 
@@ -69,6 +71,7 @@ class AggregateFunction(Function):
 
     The function receives no special handling of repeated fields.
     """
+
     def evaluate(self, num_rows, *args):
         return self._evaluate(num_rows, *args)
 
@@ -86,6 +89,7 @@ class ScalarFunction(Function):
     identity.  Thus, this is not the appropriate place for tinyquery to flatten
     the output, and we need to unflatten the results.
     """
+
     def evaluate(self, num_rows, *args):
         repeated_columns = [
             col for col in args if col.mode == tq_modes.REPEATED]
@@ -149,6 +153,7 @@ class ScalarFunction(Function):
 
 class ArithmeticOperator(ScalarFunction):
     """Basic operators like +."""
+
     def __init__(self, func):
         self.func = func
 
@@ -169,6 +174,7 @@ class ArithmeticOperator(ScalarFunction):
 
 
 class ComparisonOperator(ScalarFunction):
+
     def __init__(self, func):
         self.func = func
 
@@ -202,7 +208,7 @@ class ComparisonOperator(ScalarFunction):
         # there is some special casing required due to how BQ implicitly
         # converts some types.
         if (tq_types.TIMESTAMP in set([column1.type, column2.type]) and
-                column1.type != column2.type):
+            column1.type != column2.type):
 
             (timestamp_column, other_column) = (
                 (column1, column2) if column1.type == tq_types.TIMESTAMP
@@ -246,6 +252,7 @@ class ComparisonOperator(ScalarFunction):
 
 
 class BooleanOperator(ScalarFunction):
+
     def __init__(self, func):
         self.func = func
 
@@ -262,6 +269,7 @@ class BooleanOperator(ScalarFunction):
 
 
 class UnaryIntOperator(ScalarFunction):
+
     def __init__(self, func):
         self.func = pass_through_none(func)
 
@@ -277,6 +285,7 @@ class UnaryIntOperator(ScalarFunction):
 
 
 class UnaryBoolOperator(ScalarFunction):
+
     def __init__(self, func, takes_none=False):
         self.func = func if takes_none else pass_through_none(func)
 
@@ -290,6 +299,7 @@ class UnaryBoolOperator(ScalarFunction):
 
 
 class LogFunction(ScalarFunction):
+
     def __init__(self, base=None):
         if base:
             self.func = pass_through_none(lambda arg: math.log(arg, base))
@@ -308,6 +318,7 @@ class LogFunction(ScalarFunction):
 
 
 class IfFunction(ScalarFunction):
+
     def check_types(self, cond, arg1, arg2):
         if cond != tq_types.BOOL:
             raise TypeError('Expected bool type.')
@@ -330,6 +341,7 @@ class IfFunction(ScalarFunction):
 
 
 class IfNullFunction(ScalarFunction):
+
     def check_types(self, arg1, arg2):
         if arg1 == tq_types.NONETYPE:
             return arg2
@@ -347,6 +359,7 @@ class IfNullFunction(ScalarFunction):
 
 
 class CoalesceFunction(ScalarFunction):
+
     def check_types(self, *args):
         # Types can be either all the same, or include some NONETYPE.
         types = set(args) - set([tq_types.NONETYPE])
@@ -366,12 +379,14 @@ class CoalesceFunction(ScalarFunction):
                 if x is not None:
                     return x
             return None
+
         values = [first_nonnull(r) for r in rows]
         return context.Column(type=result_type, mode=tq_modes.NULLABLE,
                               values=values)
 
 
 class HashFunction(ScalarFunction):
+
     def check_types(self, arg):
         return tq_types.INT
 
@@ -384,6 +399,7 @@ class HashFunction(ScalarFunction):
 
 
 class FloorFunction(ScalarFunction):
+
     def check_types(self, arg):
         if arg not in tq_types.NUMERIC_TYPE_SET:
             raise TypeError('Expected type int or float.')
@@ -397,6 +413,7 @@ class FloorFunction(ScalarFunction):
 
 
 class IntegerCastFunction(ScalarFunction):
+
     def check_types(self, arg):
         # Can accept any type.
         return tq_types.INT
@@ -410,6 +427,7 @@ class IntegerCastFunction(ScalarFunction):
                     return int(arg)
                 except ValueError:
                     return None
+
             converter = string_converter
         elif column.type == tq_types.TIMESTAMP:
             return timestamp_to_usec.evaluate(num_rows, column)
@@ -419,6 +437,7 @@ class IntegerCastFunction(ScalarFunction):
 
 
 class RandFunction(ScalarFunction):
+
     def check_types(self):
         return tq_types.FLOAT
 
@@ -430,6 +449,7 @@ class RandFunction(ScalarFunction):
 
 
 class LeftFunction(ScalarFunction):
+
     def check_types(self, type1, type2):
         if type1 != tq_types.STRING:
             raise TypeError('First argument to LEFT must be a string.')
@@ -467,6 +487,7 @@ def _ensure_literal(elements):
 # Investigate pulling in re2 here.
 
 class RegexpMatchFunction(ScalarFunction):
+
     def check_types(self, type1, type2):
         _check_regexp_types(type1, type2)
         return tq_types.BOOL
@@ -481,6 +502,7 @@ class RegexpMatchFunction(ScalarFunction):
 
 
 class RegexpExtractFunction(ScalarFunction):
+
     def check_types(self, type1, type2):
         _check_regexp_types(type1, type2)
         return tq_types.STRING
@@ -504,6 +526,7 @@ class RegexpExtractFunction(ScalarFunction):
 
 
 class RegexpReplaceFunction(ScalarFunction):
+
     def check_types(self, re_type, str_type, repl_type):
         _check_regexp_types(re_type, str_type, repl_type)
         return tq_types.STRING
@@ -518,6 +541,7 @@ class RegexpReplaceFunction(ScalarFunction):
 
 # TODO(Samantha): I'm not sure how this actually works, leaving for now.
 class NthFunction(AggregateFunction):
+
     # TODO(alan): Enforce that NTH takes a constant as its first arg.
     def check_types(self, index_type, rep_list_type):
         # TODO(Samantha): This should probably be tq_types.INT_TYPE_SET.
@@ -542,6 +566,7 @@ class NthFunction(AggregateFunction):
 
 
 class FirstFunction(AggregateFunction):
+
     def check_types(self, rep_list_type):
         return rep_list_type
 
@@ -560,6 +585,7 @@ class FirstFunction(AggregateFunction):
 
 
 class NoArgFunction(ScalarFunction):
+
     def __init__(self, func, return_type=tq_types.INT):
         self.func = func
         self.type = return_type
@@ -574,6 +600,7 @@ class NoArgFunction(ScalarFunction):
 
 
 class InFunction(ScalarFunction):
+
     def check_types(self, arg1, *arg_types):
         return tq_types.BOOL
 
@@ -588,6 +615,7 @@ class InFunction(ScalarFunction):
 
 
 class ConcatFunction(AggregateFunction):
+
     def check_types(self, *arg_types):
         if any(arg_type != tq_types.STRING for arg_type in arg_types):
             raise TypeError('CONCAT only takes string arguments.')
@@ -601,6 +629,7 @@ class ConcatFunction(AggregateFunction):
 
 
 class StringFunction(ScalarFunction):
+
     def check_types(self, arg_type):
         return tq_types.STRING
 
@@ -612,6 +641,7 @@ class StringFunction(ScalarFunction):
 
 
 class MinMaxFunction(AggregateFunction):
+
     def __init__(self, func):
         self.func = func
 
@@ -626,6 +656,7 @@ class MinMaxFunction(AggregateFunction):
 
 
 class SumFunction(AggregateFunction):
+
     def check_types(self, arg):
         if arg in tq_types.INT_TYPE_SET:
             return tq_types.INT
@@ -642,6 +673,7 @@ class SumFunction(AggregateFunction):
 
 
 class CountFunction(AggregateFunction):
+
     def check_types(self, arg):
         return tq_types.INT
 
@@ -655,6 +687,7 @@ class CountFunction(AggregateFunction):
 
 
 class AvgFunction(AggregateFunction):
+
     def check_types(self, arg):
         if arg not in tq_types.NUMERIC_TYPE_SET:
             raise TypeError('Unexpected type.')
@@ -669,6 +702,7 @@ class AvgFunction(AggregateFunction):
 
 
 class CountDistinctFunction(AggregateFunction):
+
     def check_types(self, arg):
         return tq_types.INT
 
@@ -682,6 +716,7 @@ class CountDistinctFunction(AggregateFunction):
 
 
 class GroupConcatUnquotedFunction(AggregateFunction):
+
     def check_types(self, *arg_types):
         return tq_types.STRING
 
@@ -707,6 +742,7 @@ class GroupConcatUnquotedFunction(AggregateFunction):
 
 
 class StddevSampFunction(AggregateFunction):
+
     def check_types(self, arg):
         return tq_types.FLOAT
 
@@ -717,6 +753,7 @@ class StddevSampFunction(AggregateFunction):
 
 
 class QuantilesFunction(AggregateFunction):
+
     # TODO(alan): Enforce that QUANTILES takes a constant as its second arg.
     def check_types(self, arg_list_type, num_quantiles_type):
         if num_quantiles_type != tq_types.INT:
@@ -747,6 +784,7 @@ class QuantilesFunction(AggregateFunction):
 
 
 class ContainsFunction(ScalarFunction):
+
     def check_types(self, type1, type2):
         if type1 != tq_types.STRING or type2 != tq_types.STRING:
             raise TypeError("CONTAINS must operate on strings.")
@@ -761,6 +799,7 @@ class ContainsFunction(ScalarFunction):
 
 
 class TimestampFunction(ScalarFunction):
+
     def check_types(self, type1):
         if type1 not in tq_types.DATETIME_TYPE_SET:
             raise TypeError(
@@ -779,9 +818,9 @@ class TimestampFunction(ScalarFunction):
             # decimal part representing microseconds.
             converter = lambda ts: float(ts) / 1E6
         convert_fn = pass_through_none(
-                # arrow.get parses ISO8601 strings and int/float unix
-                # timestamps without a format parameter
-                lambda ts: arrow.get(converter(ts)).to('UTC').naive)
+            # arrow.get parses ISO8601 strings and int/float unix
+            # timestamps without a format parameter
+            lambda ts: arrow.get(converter(ts)).to('UTC').naive)
         try:
             values = [convert_fn(x) for x in column.values]
         except Exception:
@@ -793,6 +832,7 @@ class TimestampFunction(ScalarFunction):
 
 
 class TimestampExtractFunction(ScalarFunction):
+
     def __init__(self, extractor, return_type):
         self.extractor = pass_through_none(extractor)
         self.type = return_type
@@ -835,10 +875,11 @@ class DateAddFunction(ScalarFunction):
                 year = ts.year + (ts.month - 1 + num_intervals) // 12
                 month = 1 + (ts.month - 1 + num_intervals) % 12
                 return ts.replace(year=year, month=month)
+
             values = [adder(x) for x in timestamps.values]
         elif interval_type == 'YEAR':
             convert_fn = pass_through_none(
-                    lambda ts: ts.replace(year=(ts.year + num_intervals)))
+                lambda ts: ts.replace(year=(ts.year + num_intervals)))
             values = [convert_fn(x) for x in timestamps.values]
         else:
             # All of the other valid options for bigquery are also valid
@@ -854,6 +895,7 @@ class DateAddFunction(ScalarFunction):
 
 
 class DateDiffFunction(ScalarFunction):
+
     def check_types(self, type1, type2):
         if not (type1 == tq_types.TIMESTAMP and type2 == tq_types.TIMESTAMP):
             raise TypeError('DATEDIFF requires two timestamps.')
@@ -874,6 +916,7 @@ class Compose(AggregateFunction):
     Note that this is not actually a bigquery function, but a tool for
     combining them in implementations.
     """
+
     def __init__(self, *functions):
         self.functions = list(reversed(functions))
         assert len(self.functions) > 1, (
@@ -895,6 +938,7 @@ class Compose(AggregateFunction):
 
 class TimestampShiftFunction(ScalarFunction):
     """Shift a timestamp to the beginning of the specified interval."""
+
     def __init__(self, interval):
         self.interval = interval
         assert interval in ('day', 'hour', 'month', 'year')
@@ -930,6 +974,7 @@ class UnixTimestampToWeekdayFunction(ScalarFunction):
     Note that in contrast to other day of week functions, days run from
     0 == Sunday to 6 == Saturday (for consistency with bigquery).
     """
+
     def check_types(self, type1, type2):
         if not (type1 == tq_types.INT and type2 == tq_types.INT):
             raise TypeError(
@@ -947,8 +992,8 @@ class UnixTimestampToWeekdayFunction(ScalarFunction):
         truncated = TimestampShiftFunction('day').evaluate(
             num_rows, timestamps)
         convert = pass_through_none(
-                lambda ts: ts + datetime.timedelta(
-                    days=(weekday - self._weekday_from_ts(ts))))
+            lambda ts: ts + datetime.timedelta(
+                days=(weekday - self._weekday_from_ts(ts))))
         values = [convert(x) for x in truncated.values]
         ts_result = context.Column(
             type=tq_types.TIMESTAMP, mode=tq_modes.NULLABLE, values=values)
@@ -961,6 +1006,7 @@ class StrftimeFunction(ScalarFunction):
     TODO(colin): it appears that bigquery and python strftime behave
     identically.  Are there any differences?
     """
+
     def check_types(self, type1, type2):
         if not (type1 in tq_types.DATETIME_TYPE_SET and
                 type2 == tq_types.STRING):
@@ -978,6 +1024,7 @@ class StrftimeFunction(ScalarFunction):
 
 
 class NumericArgReduceFunction(AggregateFunction):
+
     def __init__(self, reducer):
         self.reducer = reducer
 
@@ -1096,7 +1143,7 @@ class JSONExtractFunction(ScalarFunction):
         if json_path.startswith('['):
             idx, rest = self._parse_array_index(json_path)
             if (not isinstance(parsed_json_expr, list) or
-                    idx >= len(parsed_json_expr)):
+                idx >= len(parsed_json_expr)):
                 return self.NO_RESULT
             value = parsed_json_expr[idx]
             if value is None:
@@ -1123,7 +1170,7 @@ class JSONExtractFunction(ScalarFunction):
             # strings.
             values = [None
                       if isinstance(val, (dict, list, type(None)))
-                      or val is self.NO_RESULT
+                         or val is self.NO_RESULT
                       else str(val)
                       for val in values]
         else:
@@ -1143,6 +1190,22 @@ timestamp_to_usec = TimestampExtractFunction(
     return_type=tq_types.INT)
 
 
+# Functions added for Standard SQL compatibility
+class StartsWithFunction(ScalarFunction):
+
+    def check_types(self, type1, type2):
+        if type1 != tq_types.STRING or type2 != tq_types.STRING:
+            raise TypeError('Both arguments to STARTS_WITH must be strings.')
+        return tq_types.BOOL
+
+    def _evaluate(self, num_rows, string_col, prefix_col):
+        values = [s.startswith(p) if s is not None and p is not None else None
+                  for s, p in zip(string_col.values, prefix_col.values)]
+        return context.Column(type=tq_types.STRING,
+                              mode=tq_modes.NULLABLE,
+                              values=values)
+
+
 _UNARY_OPERATORS = {
     '-': UnaryIntOperator(lambda a: -a),
     # Note that for NOT takes_none is intentionally False, which means that
@@ -1151,7 +1214,6 @@ _UNARY_OPERATORS = {
     'is_null': UnaryBoolOperator(lambda a: a is None, takes_none=True),
     'is_not_null': UnaryBoolOperator(lambda a: a is not None, takes_none=True),
 }
-
 
 _BINARY_OPERATORS = {
     '+': ArithmeticOperator(lambda a, b: a + b),
@@ -1170,7 +1232,6 @@ _BINARY_OPERATORS = {
     'or': BooleanOperator(lambda a, b: a or b),
     'contains': ContainsFunction(),
 }
-
 
 _FUNCTIONS = {
     'abs': UnaryIntOperator(abs),
@@ -1197,6 +1258,7 @@ _FUNCTIONS = {
     'regexp_replace': RegexpReplaceFunction(),
     'least': NumericArgReduceFunction(min),
     'greatest': NumericArgReduceFunction(max),
+    'starts_with': StartsWithFunction(),
     'timestamp': TimestampFunction(),
     'current_date': NoArgFunction(
         lambda: datetime.datetime.utcnow().strftime('%Y-%m-%d'),
@@ -1319,7 +1381,6 @@ _FUNCTIONS = {
     'json_extract': JSONExtractFunction(),
     'json_extract_scalar': JSONExtractFunction(scalar=True),
 }
-
 
 _AGGREGATE_FUNCTIONS = {
     'sum': SumFunction(),

@@ -1,5 +1,6 @@
 *.pyc
 .idea
+.venv
 parser.out
 dist
 build
