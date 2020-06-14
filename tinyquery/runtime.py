@@ -9,6 +9,10 @@ import math
 import random
 import re
 import time
+from typing import (
+    Callable,
+    Sequence,
+)
 
 import arrow
 import six
@@ -1201,7 +1205,25 @@ class StartsWithFunction(ScalarFunction):
     def _evaluate(self, num_rows, string_col, prefix_col):
         values = [s.startswith(p) if s is not None and p is not None else None
                   for s, p in zip(string_col.values, prefix_col.values)]
-        return context.Column(type=tq_types.STRING,
+        return context.Column(type=tq_types.BOOL,
+                              mode=tq_modes.NULLABLE,
+                              values=values)
+
+
+class StringLengthFunction(ScalarFunction):
+
+    def __init__(self, name: str, trans: Callable[[str], Sequence]):
+        self.name = name
+        self.trans = trans
+
+    def check_types(self, type1):
+        if type1 != tq_types.STRING:
+            raise TypeError(f'Arguments to {self.name} must be a string.')
+        return tq_types.INT
+
+    def _evaluate(self, num_rows, string_col):
+        values = [None if s is None else len(self.trans(s)) for s in string_col.values]
+        return context.Column(type=tq_types.INT,
                               mode=tq_modes.NULLABLE,
                               values=values)
 
@@ -1235,6 +1257,7 @@ _BINARY_OPERATORS = {
 
 _FUNCTIONS = {
     'abs': UnaryIntOperator(abs),
+    'byte_length': StringLengthFunction('BYTE_LENGTH', lambda s: s.encode('UTF-8')),
     'floor': FloorFunction(),
     'integer': IntegerCastFunction(),
     'ln': LogFunction(),
@@ -1243,6 +1266,7 @@ _FUNCTIONS = {
     'log2': LogFunction(2),
     'rand': RandFunction(),
     'nth': NthFunction(),
+    'char_length': StringLengthFunction('CHAR_LENGTH', str),
     'concat': ConcatFunction(),
     'string': StringFunction(),
     'pow': ArithmeticOperator(lambda a, b: a ** b),
